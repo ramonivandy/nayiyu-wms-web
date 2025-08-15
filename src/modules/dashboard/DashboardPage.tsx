@@ -1,18 +1,25 @@
 import { AlertTriangle, Clock } from 'lucide-react'
-import { useInventorySummary } from '../inventory/hooks'
-import { useLocalStore } from '../../shared/useLocalStore'
-import type { Order } from '../orders/OrdersPage'
-import type { Material } from '../inventory/types'
+import { useApi } from '../../shared/useApi'
+import { listMaterials } from '../../api/materials'
+import { listProducts } from '../../api/products'
+import { listOrders } from '../../api/orders'
+import type { OrderDto, MaterialDto, ProductDto } from '../../api/types'
 
 export function DashboardPage() {
-	const { totalMaterials, totalProducts, lowStockCount, expiringSoonCount } = useInventorySummary()
-	const orders = useLocalStore<Order[]>('orders', [])
-	const materials = useLocalStore<Material[]>('materials', [])
+	const materials = useApi<MaterialDto[]>(() => listMaterials(), [])
+	const products = useApi<ProductDto[]>(() => listProducts(), [])
+	const orders = useApi<OrderDto[]>(() => listOrders(), [])
 
-	const series = buildOrdersSeries(orders.value)
-	const lowStockList = materials.value.filter((m) => m.threshold != null && m.quantity <= m.threshold).slice(0, 5)
+	const totalMaterials = materials.data?.length ?? 0
+	const totalProducts = products.data?.length ?? 0
 	const soon = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-	const expiringList = materials.value.filter((m) => m.expiry && new Date(m.expiry) <= soon).slice(0, 5)
+	const lowStockList = (materials.data ?? []).filter((m) => m.lowStockThreshold != null && m.quantity <= (m.lowStockThreshold ?? 0)).slice(0, 5)
+	const expiringList = (materials.data ?? []).filter((m) => m.expiryDate && new Date(m.expiryDate) <= soon).slice(0, 5)
+	const lowStockCount = lowStockList.length
+	const expiringSoonCount = expiringList.length
+
+	const activeOrders = (orders.data ?? []).filter((o) => o.status !== 'CANCELLED')
+	const series = buildOrdersSeries(activeOrders)
 
 	return (
 		<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -63,7 +70,7 @@ export function DashboardPage() {
 							{expiringList.map((m) => (
 								<li key={m.id} className="flex justify-between">
 									<span>{m.name}</span>
-									<span>{new Date(m.expiry!).toLocaleDateString()}</span>
+									<span>{new Date(m.expiryDate!).toLocaleDateString()}</span>
 								</li>
 							))}
 						</ul>
@@ -89,7 +96,7 @@ function Card({ title, value, subtitle, icon }: { title: string; value: string; 
 	)
 }
 
-function buildOrdersSeries(orders: Order[]) {
+function buildOrdersSeries(orders: OrderDto[]) {
 	const days = [...Array(14)].map((_, i) => {
 		const d = new Date()
 		d.setDate(d.getDate() - (13 - i))

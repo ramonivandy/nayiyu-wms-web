@@ -1,48 +1,80 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../../shared/ui/Button'
 import { Input } from '../../shared/ui/Input'
 import { Label } from '../../shared/ui/Label'
-import { useLocalStore } from '../../shared/useLocalStore'
-import type { Material } from '../inventory/types'
 import { Plus, Trash2, Save, X } from 'lucide-react'
+import { useApi } from '../../shared/useApi'
+import { createMaterial, deleteMaterial, listMaterials, updateMaterial } from '../../api/materials'
+import type { MaterialDto } from '../../api/types'
+import { useToast } from '../../shared/toast/ToastProvider'
+import { humanizeApiError } from '../../api/client'
 
-const empty: Material = { id: '', name: '', unit: 'pcs', quantity: 0 }
+const empty = { id: '', name: '', unit: 'pcs', quantity: 0, lowStockThreshold: 0, expiryDate: '' }
+
+type FormState = typeof empty
 
 export function MaterialsPage() {
-	const store = useLocalStore<Material[]>('materials', [])
-	const [form, setForm] = useState<Material>({ ...empty })
-	const [expiry, setExpiry] = useState<string>('')
+	const { data, loading, error, refetch } = useApi<MaterialDto[]>(() => listMaterials(), [])
+	const { success, error: toastError } = useToast()
+	const [form, setForm] = useState<FormState>({ ...empty })
 
 	const units = ['pcs', 'gram', 'kg', 'ml', 'liter', 'pack']
-
 	const isEditing = Boolean(form.id)
+
+	useEffect(() => {
+		// ensure list is loaded initially
+	}, [])
 
 	function resetForm() {
 		setForm({ ...empty })
-		setExpiry('')
 	}
 
-	function save() {
-		if (!form.name.trim()) return
-		const id = form.id || crypto.randomUUID()
-		const item: Material = { ...form, id, expiry: expiry || undefined }
-		const next = store.value.some((m) => m.id === id)
-			? store.value.map((m) => (m.id === id ? item : m))
-			: [...store.value, item]
-		store.setValue(next)
-		resetForm()
+	async function save() {
+		if (!form.name.trim()) return toastError('Name is required')
+		try {
+			if (isEditing) {
+				await updateMaterial(form.id, {
+					name: form.name,
+					quantity: Number(form.quantity) || 0,
+					unit: form.unit,
+					expiryDate: form.expiryDate || undefined,
+					lowStockThreshold: form.lowStockThreshold || 0,
+				})
+				success('Material updated')
+			} else {
+				await createMaterial({
+					name: form.name,
+					quantity: Number(form.quantity) || 0,
+					unit: form.unit,
+					expiryDate: form.expiryDate || undefined,
+					lowStockThreshold: form.lowStockThreshold || 0,
+				})
+				success('Material created')
+			}
+			await refetch()
+			resetForm()
+		} catch (e: any) {
+			toastError(humanizeApiError(e))
+		}
 	}
 
-	function remove(id: string) {
-		store.setValue(store.value.filter((m) => m.id !== id))
+	async function remove(id: string) {
+		try {
+			await deleteMaterial(id)
+			success('Material deleted')
+			await refetch()
+		} catch (e: any) {
+			toastError(humanizeApiError(e))
+		}
 	}
 
-	const sorted = useMemo(() => [...store.value].sort((a, b) => a.name.localeCompare(b.name)), [store.value])
+	const sorted = useMemo(() => (data ? [...data].sort((a, b) => a.name.localeCompare(b.name)) : []), [data])
 
 	return (
 		<div className="space-y-4">
 			<h2 className="text-xl font-semibold">Materials</h2>
 			<div className="grid gap-3 rounded-xl border p-4 bg-card">
+				{error && <div className="text-sm text-destructive">Failed to load materials</div>}
 				<div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
 					<div>
 						<Label htmlFor="name">Name</Label>
@@ -75,13 +107,21 @@ export function MaterialsPage() {
 						<Input
 							id="threshold"
 							type="number"
-							value={form.threshold ?? 0}
-							onChange={(e) => setForm({ ...form, threshold: Number(e.target.value) })}
+							value={form.lowStockThreshold}
+							onChange={(e) => setForm({ ...form, lowStockThreshold: Number(e.target.value) })}
 						/>
 					</div>
 					<div className="sm:col-span-2">
 						<Label htmlFor="expiry">Expiry</Label>
-						<Input id="expiry" type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+						<div className="relative">
+							<input
+								id="expiry"
+								type="date"
+								value={form.expiryDate}
+								onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
+								className="h-9 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							/>
+						</div>
 					</div>
 				</div>
 				<div className="flex items-center justify-end gap-2">
@@ -90,7 +130,7 @@ export function MaterialsPage() {
 							<X className="size-4" /> Cancel
 						</Button>
 					)}
-					<Button onClick={save} className="inline-flex items-center gap-2">
+					<Button onClick={save} disabled={loading} className="inline-flex items-center gap-2">
 						{isEditing ? <Save className="size-4" /> : <Plus className="size-4" />}
 						{isEditing ? 'Save' : 'Add'}
 					</Button>
@@ -98,19 +138,26 @@ export function MaterialsPage() {
 			</div>
 
 			<div className="grid gap-2">
-				{sorted.length === 0 && <div className="text-sm text-foreground/60">No materials yet.</div>}
+				{!loading && sorted.length === 0 && <div className="text-sm text-foreground/60">No materials yet.</div>}
 				{sorted.map((m) => (
 					<div key={m.id} className="flex items-center justify-between rounded-lg border p-3">
 						<div className="space-y-0.5">
 							<div className="font-medium">{m.name}</div>
 							<div className="text-xs text-foreground/60">
 								{m.quantity} {m.unit}
-								{m.threshold != null && ` • threshold ${m.threshold}`}
-								{m.expiry && ` • exp ${new Date(m.expiry).toLocaleDateString()}`}
+								{m.lowStockThreshold != null && ` • threshold ${m.lowStockThreshold}`}
+								{m.expiryDate && ` • exp ${new Date(m.expiryDate).toLocaleDateString()}`}
 							</div>
 						</div>
 						<div className="flex items-center gap-2">
-							<Button variant="outline" onClick={() => { setForm(m); setExpiry(m.expiry ?? '') }}>Edit</Button>
+							<Button variant="outline" onClick={() => setForm({
+								id: m.id,
+								name: m.name,
+								unit: m.unit,
+								quantity: m.quantity,
+								lowStockThreshold: m.lowStockThreshold ?? 0,
+								expiryDate: m.expiryDate ?? ''
+							})}>Edit</Button>
 							<Button variant="ghost" onClick={() => remove(m.id)} className="text-destructive inline-flex items-center gap-1">
 								<Trash2 className="size-4" /> Delete
 							</Button>

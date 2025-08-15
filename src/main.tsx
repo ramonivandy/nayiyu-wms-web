@@ -10,6 +10,7 @@ import { OrdersPage } from './modules/orders/OrdersPage'
 import { ProductionCalculatorPage } from './modules/production/ProductionCalculatorPage'
 import { LoginPage } from './modules/auth/LoginPage'
 import { RequireAuth } from './modules/auth/RequireAuth'
+import { ToastProvider } from './shared/toast/ToastProvider'
 
 const router = createBrowserRouter([
 	{ path: '/login', element: <LoginPage /> },
@@ -34,6 +35,8 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')!).render(
 	<StrictMode>
-		<RouterProvider router={router} />
+		<ToastProvider>
+			<RouterProvider router={router} />
+		</ToastProvider>
 	</StrictMode>,
 )

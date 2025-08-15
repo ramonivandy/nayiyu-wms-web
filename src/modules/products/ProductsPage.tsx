@@ -1,56 +1,99 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../../shared/ui/Button'
 import { Input } from '../../shared/ui/Input'
 import { Label } from '../../shared/ui/Label'
-import { useLocalStore } from '../../shared/useLocalStore'
-import type { BomItem, Material, Product } from '../inventory/types'
 import { Plus, Trash2, Save, X } from 'lucide-react'
+import { useApi } from '../../shared/useApi'
+import { listMaterials } from '../../api/materials'
+import { createProduct, deleteProduct, getProductWithBom, listProducts, setProductBom, updateProduct } from '../../api/products'
+import type { MaterialDto, ProductDto } from '../../api/types'
+import { useToast } from '../../shared/toast/ToastProvider'
 
-const empty: Product = { id: '', name: '', unit: 'pack', quantity: 0, bom: [] }
+type BomDraftItem = { materialId: string; quantityPerPortion: number }
+const emptyProduct = { id: '', name: '', unit: 'pack', bom: [] as BomDraftItem[] }
 
 export function ProductsPage() {
-	const materials = useLocalStore<Material[]>('materials', [])
-	const store = useLocalStore<Product[]>('products', [])
-	const [form, setForm] = useState<Product>(empty)
-	const [bomItem, setBomItem] = useState<BomItem>({ materialId: '', quantity: 0 })
-
-	const productUnits = ['pack', 'pcs']
+	const materialsQuery = useApi<MaterialDto[]>(() => listMaterials(), [])
+	const productsQuery = useApi<ProductDto[]>(() => listProducts(), [])
+	const { success, error } = useToast()
+	const [form, setForm] = useState<typeof emptyProduct>(emptyProduct)
+	const [bomItem, setBomItem] = useState<BomDraftItem>({ materialId: '', quantityPerPortion: 0 })
 
 	const isEditing = Boolean(form.id)
 
 	function resetForm() {
-		setForm(empty)
-		setBomItem({ materialId: '', quantity: 0 })
+		setForm(emptyProduct)
+		setBomItem({ materialId: '', quantityPerPortion: 0 })
 	}
 
-	function addOrUpdateProduct() {
+	async function addOrUpdateProduct() {
 		if (!form.name.trim()) return
-		const id = form.id || crypto.randomUUID()
-		const item: Product = { ...form, id }
-		const next = store.value.some((p) => p.id === id)
-			? store.value.map((p) => (p.id === id ? item : p))
-			: [...store.value, item]
-		store.setValue(next)
-		resetForm()
+		try {
+			let productId = form.id
+			if (isEditing) {
+				await updateProduct(productId, { name: form.name })
+				success('Product updated')
+			} else {
+				const created = await createProduct({ name: form.name })
+				productId = created.id
+				success('Product created')
+			}
+			if (form.bom.length > 0) {
+				await setProductBom(productId, form.bom.map((b) => ({ materialId: b.materialId, quantityPerPortion: b.quantityPerPortion })))
+			}
+			await productsQuery.refetch()
+			resetForm()
+		} catch (e: any) {
+			error(e?.message ?? 'Failed to save product')
+		}
 	}
 
-	function removeProduct(id: string) {
-		store.setValue(store.value.filter((p) => p.id !== id))
+	async function editExistingProduct(p: ProductDto) {
+		try {
+			const full = await getProductWithBom(p.id)
+			setForm({
+				id: full.id,
+				name: full.name,
+				unit: 'pack',
+				bom: (full.bomItems ?? full.bom ?? []).map((x: any) => ({ materialId: x.materialId, quantityPerPortion: x.quantityPerPortion })),
+			})
+		} catch (e: any) {
+			error(e?.message ?? 'Failed to load product')
+		}
+	}
+
+	async function removeProduct(productId: string) {
+		try {
+			await deleteProduct(productId)
+			success('Product deleted')
+			await productsQuery.refetch()
+		} catch (e: any) {
+			error(e?.message ?? 'Failed to delete product')
+		}
 	}
 
 	function addBomItem() {
-		if (!bomItem.materialId || bomItem.quantity <= 0) return
+		if (!bomItem.materialId || bomItem.quantityPerPortion <= 0) return
 		setForm({ ...form, bom: [...form.bom, bomItem] })
-		setBomItem({ materialId: '', quantity: 0 })
+		setBomItem({ materialId: '', quantityPerPortion: 0 })
 	}
 
-	const sorted = useMemo(() => [...store.value].sort((a, b) => a.name.localeCompare(b.name)), [store.value])
+	const sorted = useMemo(() => (productsQuery.data ? [...productsQuery.data].sort((a, b) => a.name.localeCompare(b.name)) : []), [productsQuery.data])
+
+	function countMaterials(p: ProductDto) {
+		return (p.bomItems?.length ?? p.bom?.length ?? 0)
+	}
+
+	function materialUnit(id: string) {
+		const m = (materialsQuery.data ?? []).find((x) => x.id === id)
+		return m?.unit ? ` ${m.unit}` : ''
+	}
 
 	return (
 		<div className="space-y-4">
 			<h2 className="text-xl font-semibold">Products</h2>
 			<div className="grid gap-3 rounded-xl border p-4 bg-card">
-				<div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+				<div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
 					<div>
 						<Label htmlFor="name">Name</Label>
 						<Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -63,19 +106,10 @@ export function ProductsPage() {
 							value={form.unit}
 							onChange={(e) => setForm({ ...form, unit: e.target.value })}
 						>
-							{productUnits.map((u) => (
+							{['pack', 'pcs'].map((u) => (
 								<option key={u}>{u}</option>
 							))}
 						</select>
-					</div>
-					<div>
-						<Label htmlFor="qty">Quantity</Label>
-						<Input
-							id="qty"
-							type="number"
-							value={form.quantity}
-							onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
-						/>
 					</div>
 				</div>
 
@@ -88,9 +122,9 @@ export function ProductsPage() {
 							onChange={(e) => setBomItem({ ...bomItem, materialId: e.target.value })}
 						>
 							<option value="">Select material</option>
-							{materials.value.map((m) => (
+							{(materialsQuery.data ?? []).map((m) => (
 								<option key={m.id} value={m.id}>
-									{m.name}
+									{m.name} ({m.unit})
 								</option>
 							))}
 						</select>
@@ -99,8 +133,8 @@ export function ProductsPage() {
 						<Label>Qty per product</Label>
 						<Input
 							type="number"
-							value={bomItem.quantity}
-							onChange={(e) => setBomItem({ ...bomItem, quantity: Number(e.target.value) })}
+							value={bomItem.quantityPerPortion}
+							onChange={(e) => setBomItem({ ...bomItem, quantityPerPortion: Number(e.target.value) })}
 						/>
 					</div>
 					<div className="flex items-end">
@@ -115,21 +149,21 @@ export function ProductsPage() {
 						<div className="text-sm font-medium mb-2">BOM</div>
 						<ul className="grid gap-2">
 							{form.bom.map((b, idx) => {
-								const mat = materials.value.find((m) => m.id === b.materialId)
+								const mat = (materialsQuery.data ?? []).find((m) => m.id === b.materialId)
 								return (
 									<li key={idx} className="flex items-center justify-between gap-2 text-sm">
 										<span className="min-w-0 flex-1 truncate">
-											{mat?.name ?? 'Unknown'}
+											{mat?.name ?? 'Unknown'}{materialUnit(b.materialId)}
 										</span>
 										<Input
 											type="number"
 											className="w-24"
-											value={b.quantity}
+											value={b.quantityPerPortion}
 											onChange={(e) => {
 												const q = Number(e.target.value)
 												setForm({
 													...form,
-													bom: form.bom.map((x, i) => (i === idx ? { ...x, quantity: q } : x)),
+													bom: form.bom.map((x, i) => (i === idx ? { ...x, quantityPerPortion: q } : x)),
 												})
 											}}
 										/>
@@ -166,12 +200,10 @@ export function ProductsPage() {
 					<div key={p.id} className="flex items-center justify-between rounded-lg border p-3">
 						<div className="space-y-0.5">
 							<div className="font-medium">{p.name}</div>
-							<div className="text-xs text-foreground/60">
-								{p.quantity} {p.unit} • {p.bom.length} material(s)
-							</div>
+							<div className="text-xs text-foreground/60">{countMaterials(p)} material(s)</div>
 						</div>
 						<div className="flex items-center gap-2">
-							<Button variant="outline" onClick={() => setForm(p)}>Edit</Button>
+							<Button variant="outline" onClick={() => editExistingProduct(p)}>Edit</Button>
 							<Button variant="ghost" onClick={() => removeProduct(p.id)} className="text-destructive inline-flex items-center gap-1">
 								<Trash2 className="size-4" /> Delete
 							</Button>

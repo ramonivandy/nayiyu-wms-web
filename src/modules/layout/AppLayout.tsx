@@ -1,10 +1,12 @@
 import { Outlet, NavLink, Link } from 'react-router-dom'
 import { LayoutDashboard, Package2, Soup, ClipboardList, Calculator } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { apiLogout } from '../../api/auth'
 
 export function AppLayout() {
 	const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
-	function logout() {
+	async function logout() {
+		try { await apiLogout() } catch {}
 		localStorage.removeItem('authToken')
 		location.href = '/login'
 	}

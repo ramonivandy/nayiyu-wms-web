@@ -1,15 +1,23 @@
-import { useMemo, useState } from 'react'
-import { useLocalStore } from '../../shared/useLocalStore'
-import type { Material, Product } from '../inventory/types'
+import { useState } from 'react'
+import { useApi } from '../../shared/useApi'
+import { listProducts } from '../../api/products'
 import { Label } from '../../shared/ui/Label'
+import type { ProductDto, CalculationResultDto } from '../../api/types'
+import { apiFetch } from '../../api/client'
 
 export function ProductionCalculatorPage() {
-	const materials = useLocalStore<Material[]>('materials', [])
-	const products = useLocalStore<Product[]>('products', [])
+	const products = useApi<ProductDto[]>(() => listProducts(), [])
 	const [productId, setProductId] = useState<string>('')
+	const [result, setResult] = useState<CalculationResultDto | null>(null)
 
-	const selected = products.value.find((p) => p.id === productId)
-	const { maxPortions, shortages } = useMemo(() => calculate(selected, materials.value), [selected, materials.value])
+	async function calculate() {
+		if (!productId) return
+		const res = await apiFetch<{ success: boolean; data: CalculationResultDto }>(
+			'/api/v1/calculations/production',
+			{ method: 'POST', body: JSON.stringify({ productId }) }
+		)
+		setResult(res.data)
+	}
 
 	return (
 		<div className="space-y-4">
@@ -23,54 +31,38 @@ export function ProductionCalculatorPage() {
 						onChange={(e) => setProductId(e.target.value)}
 					>
 						<option value="">Select product</option>
-						{products.value.map((p) => (
+						{(products.data ?? []).map((p) => (
 							<option key={p.id} value={p.id}>
 								{p.name}
 							</option>
 						))}
 					</select>
 				</div>
+				<button onClick={calculate} className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm">Calculate</button>
 
-				{selected && (
+				{result && (
 					<div className="grid gap-3">
 						<div className="rounded-lg border p-3">
 							<div className="text-sm">Max producible portions</div>
-							<div className="text-3xl font-semibold">{maxPortions}</div>
+							<div className="text-3xl font-semibold">{result.maxProduciblePortions}</div>
 						</div>
 						<div className="rounded-lg border p-3">
 							<div className="text-sm font-medium mb-2">Shortages</div>
-							{shortages.length === 0 && <div className="text-sm text-foreground/60">No shortages.</div>}
+							{result.shortages.length === 0 && <div className="text-sm text-foreground/60">No shortages.</div>}
 							<ul className="text-sm grid gap-1">
-								{shortages.map((s, idx) => (
+								{result.shortages.map((s, idx) => (
 									<li key={idx} className="flex justify-between">
-										<span>{s.name}</span>
+										<span>{s.materialName}</span>
 										<span>
-											Need {s.need} / Have {s.have} {s.unit}
+											Need {s.required} / Have {s.available}
 										</span>
 									</li>
 								))}
-						</ul>
-					</div>
+							</ul>
+						</div>
 					</div>
 				)}
 			</div>
 		</div>
 	)
-}
-
-function calculate(product: Product | undefined, materials: Material[]) {
-	if (!product) return { maxPortions: 0, shortages: [] as { name: string; need: number; have: number; unit: string }[] }
-	let max = Infinity
-	const shortages: { name: string; need: number; have: number; unit: string }[] = []
-	for (const b of product.bom) {
-		const m = materials.find((x) => x.id === b.materialId)
-		const have = m?.quantity ?? 0
-		const needPer = b.quantity
-		if (needPer <= 0) continue
-		const possible = Math.floor(have / needPer)
-		max = Math.min(max, possible)
-		if (have < needPer) shortages.push({ name: m?.name ?? 'Unknown', need: needPer, have, unit: m?.unit ?? '' })
-	}
-	if (max === Infinity) max = 0
-	return { maxPortions: max, shortages }
 }
