@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState, type ChangeEvent } from 'react'
 import { Button } from '../../shared/ui/Button'
 import { Input } from '../../shared/ui/Input'
 import { Label } from '../../shared/ui/Label'
@@ -7,7 +7,7 @@ import { useApi } from '../../shared/useApi'
 import { listMaterials } from '../../api/materials'
 import { createProduct, deleteProduct, getProductWithBom, listProducts, setProductBom, updateProduct } from '../../api/products'
 import type { MaterialDto, ProductDto } from '../../api/types'
-import { useToast } from '../../shared/toast/ToastProvider'
+import { useToast } from '../../shared/toast/useToast'
 
 type BomDraftItem = { materialId: string; quantityPerPortion: number }
 const emptyProduct = { id: '', name: '', unit: 'pack', bom: [] as BomDraftItem[] }
@@ -43,9 +43,9 @@ export function ProductsPage() {
 			}
 			await productsQuery.refetch()
 			resetForm()
-		} catch (e: any) {
-			error(e?.message ?? 'Failed to save product')
-		}
+                } catch (e: unknown) {
+                        error(e instanceof Error ? e.message : 'Failed to save product')
+                }
 	}
 
 	async function editExistingProduct(p: ProductDto) {
@@ -55,22 +55,22 @@ export function ProductsPage() {
 				id: full.id,
 				name: full.name,
 				unit: 'pack',
-				bom: (full.bomItems ?? full.bom ?? []).map((x: any) => ({ materialId: x.materialId, quantityPerPortion: x.quantityPerPortion })),
-			})
-		} catch (e: any) {
-			error(e?.message ?? 'Failed to load product')
-		}
-	}
+                                bom: (full.bomItems ?? full.bom ?? []).map((x: { materialId: string; quantityPerPortion: number }) => ({ materialId: x.materialId, quantityPerPortion: x.quantityPerPortion })),
+                        })
+                } catch (e: unknown) {
+                        error(e instanceof Error ? e.message : 'Failed to load product')
+                }
+        }
 
 	async function removeProduct(productId: string) {
 		try {
 			await deleteProduct(productId)
 			success('Product deleted')
 			await productsQuery.refetch()
-		} catch (e: any) {
-			error(e?.message ?? 'Failed to delete product')
-		}
-	}
+                } catch (e: unknown) {
+                        error(e instanceof Error ? e.message : 'Failed to delete product')
+                }
+        }
 
 	function addBomItem() {
 		if (!bomItem.materialId || bomItem.quantityPerPortion <= 0) return
@@ -96,7 +96,7 @@ export function ProductsPage() {
 				<div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
 					<div>
 						<Label htmlFor="name">Name</Label>
-						<Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                                                <Input id="name" value={form.name} onChange={(e: ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })} />
 					</div>
 					<div>
 						<Label htmlFor="unit">Unit</Label>
@@ -104,7 +104,7 @@ export function ProductsPage() {
 							id="unit"
 							className="h-9 w-full rounded-md border bg-background px-2 text-sm"
 							value={form.unit}
-							onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                                                        onChange={(e: ChangeEvent<HTMLSelectElement>) => setForm({ ...form, unit: e.target.value })}
 						>
 							{['pack', 'pcs'].map((u) => (
 								<option key={u}>{u}</option>
@@ -119,7 +119,7 @@ export function ProductsPage() {
 						<select
 							className="h-9 w-full rounded-md border bg-background px-2 text-sm"
 							value={bomItem.materialId}
-							onChange={(e) => setBomItem({ ...bomItem, materialId: e.target.value })}
+                                                        onChange={(e: ChangeEvent<HTMLSelectElement>) => setBomItem({ ...bomItem, materialId: e.target.value })}
 						>
 							<option value="">Select material</option>
 							{(materialsQuery.data ?? []).map((m) => (
@@ -134,7 +134,7 @@ export function ProductsPage() {
 						<Input
 							type="number"
 							value={bomItem.quantityPerPortion}
-							onChange={(e) => setBomItem({ ...bomItem, quantityPerPortion: Number(e.target.value) })}
+                                                        onChange={(e: ChangeEvent<HTMLInputElement>) => setBomItem({ ...bomItem, quantityPerPortion: Number(e.target.value) })}
 						/>
 					</div>
 					<div className="flex items-end">
@@ -159,13 +159,13 @@ export function ProductsPage() {
 											type="number"
 											className="w-24"
 											value={b.quantityPerPortion}
-											onChange={(e) => {
-												const q = Number(e.target.value)
-												setForm({
-													...form,
-													bom: form.bom.map((x, i) => (i === idx ? { ...x, quantityPerPortion: q } : x)),
-												})
-											}}
+                                                                                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                                                                                                const q = Number(e.target.value)
+                                                                                                setForm({
+                                                                                                        ...form,
+                                                                                                        bom: form.bom.map((x, i) => (i === idx ? { ...x, quantityPerPortion: q } : x)),
+                                                                                                })
+                                                                                        }}
 										/>
 										<Button
 											variant="ghost"

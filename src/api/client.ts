@@ -13,30 +13,39 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 		...(token ? { Authorization: `Bearer ${token}` } : {}),
 		...options.headers,
 	}
-	const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
-	let data: any = null
-	try {
-		data = await res.json()
-	} catch {}
-	if (!res.ok) {
-		const err: ApiError = {
-			status: res.status,
-			message: data?.message ?? res.statusText,
-			errors: data?.errors,
-		}
-		throw err
-	}
-	return data as T
+        const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
+        let data: unknown = null
+        try {
+                data = await res.json()
+        } catch {
+                // ignore invalid JSON responses
+        }
+        if (!res.ok) {
+                const body = (typeof data === 'object' && data ? data : {}) as Record<string, unknown>
+                const err: ApiError = {
+                        status: res.status,
+                        message: typeof body.message === 'string' ? body.message : res.statusText,
+                        errors: Array.isArray(body.errors)
+                                ? (body.errors as Array<{ field?: string; message: string }>)
+                                : undefined,
+                }
+                throw err
+        }
+        return data as T
 }
 
-export function humanizeApiError(e: any): string {
-	if (!e) return 'Request failed'
-	if (e.errors && Array.isArray(e.errors) && e.errors.length > 0) {
-		const items = e.errors
-			.filter((x: any) => x)
-			.map((x: any) => (x.field ? `${x.field}: ${x.message}` : x.message))
-			.join(', ')
-		return `${e.message || 'Validation error'}: ${items}`
-	}
-	return e.message || 'Request failed'
+type FieldError = { field?: string; message: string }
+type ApiErrorLike = { message?: string; errors?: FieldError[] }
+
+export function humanizeApiError(error: unknown): string {
+        if (!error || typeof error !== 'object') return 'Request failed'
+        const err = error as ApiErrorLike
+        if (err.errors && Array.isArray(err.errors) && err.errors.length > 0) {
+                const items = err.errors
+                        .filter((x): x is FieldError => Boolean(x))
+                        .map((x) => (x.field ? `${x.field}: ${x.message}` : x.message))
+                        .join(', ')
+                return `${err.message || 'Validation error'}: ${items}`
+        }
+        return err.message || 'Request failed'
 }

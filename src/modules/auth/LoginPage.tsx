@@ -17,16 +17,16 @@ export function LoginPage() {
 		if (!email || !password) return
 		setLoading(true)
 		setError('')
-		try {
-			const { token } = await apiLogin(email, password)
-			localStorage.setItem('authToken', token)
-			navigate('/')
-		} catch (err: any) {
-			setError(err?.message ?? 'Login failed')
-		} finally {
-			setLoading(false)
-		}
-	}
+                try {
+                        const { token } = await apiLogin(email, password)
+                        localStorage.setItem('authToken', token)
+                        navigate('/')
+                } catch (err: unknown) {
+                        setError(err instanceof Error ? err.message : 'Login failed')
+                } finally {
+                        setLoading(false)
+                }
+        }
 
 	return (
 		<div className="min-h-screen grid place-items-center">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Button } from '../../shared/ui/Button'
 import { Input } from '../../shared/ui/Input'
 import { Label } from '../../shared/ui/Label'
@@ -6,7 +6,7 @@ import { Plus, Trash2, Save, X } from 'lucide-react'
 import { useApi } from '../../shared/useApi'
 import { createMaterial, deleteMaterial, listMaterials, updateMaterial } from '../../api/materials'
 import type { MaterialDto } from '../../api/types'
-import { useToast } from '../../shared/toast/ToastProvider'
+import { useToast } from '../../shared/toast/useToast'
 import { humanizeApiError } from '../../api/client'
 
 const empty = { id: '', name: '', unit: 'pcs', quantity: 0, lowStockThreshold: 0, expiryDate: '' }
@@ -29,44 +29,44 @@ export function MaterialsPage() {
 		setForm({ ...empty })
 	}
 
-	async function save() {
-		if (!form.name.trim()) return toastError('Name is required')
-		try {
-			if (isEditing) {
-				await updateMaterial(form.id, {
-					name: form.name,
-					quantity: Number(form.quantity) || 0,
-					unit: form.unit,
-					expiryDate: form.expiryDate || undefined,
-					lowStockThreshold: form.lowStockThreshold || 0,
-				})
-				success('Material updated')
-			} else {
-				await createMaterial({
-					name: form.name,
-					quantity: Number(form.quantity) || 0,
-					unit: form.unit,
-					expiryDate: form.expiryDate || undefined,
-					lowStockThreshold: form.lowStockThreshold || 0,
-				})
-				success('Material created')
-			}
-			await refetch()
-			resetForm()
-		} catch (e: any) {
-			toastError(humanizeApiError(e))
-		}
-	}
+        async function save() {
+                if (!form.name.trim()) return toastError('Name is required')
+                try {
+                        if (isEditing) {
+                                await updateMaterial(form.id, {
+                                        name: form.name,
+                                        quantity: Number(form.quantity) || 0,
+                                        unit: form.unit,
+                                        expiryDate: form.expiryDate || undefined,
+                                        lowStockThreshold: form.lowStockThreshold || 0,
+                                })
+                                success('Material updated')
+                        } else {
+                                await createMaterial({
+                                        name: form.name,
+                                        quantity: Number(form.quantity) || 0,
+                                        unit: form.unit,
+                                        expiryDate: form.expiryDate || undefined,
+                                        lowStockThreshold: form.lowStockThreshold || 0,
+                                })
+                                success('Material created')
+                        }
+                        await refetch()
+                        resetForm()
+                } catch (e: unknown) {
+                        toastError(humanizeApiError(e))
+                }
+        }
 
-	async function remove(id: string) {
-		try {
-			await deleteMaterial(id)
-			success('Material deleted')
-			await refetch()
-		} catch (e: any) {
-			toastError(humanizeApiError(e))
-		}
-	}
+        async function remove(id: string) {
+                try {
+                        await deleteMaterial(id)
+                        success('Material deleted')
+                        await refetch()
+                } catch (e: unknown) {
+                        toastError(humanizeApiError(e))
+                }
+        }
 
 	const sorted = useMemo(() => (data ? [...data].sort((a, b) => a.name.localeCompare(b.name)) : []), [data])
 
@@ -74,11 +74,11 @@ export function MaterialsPage() {
 		<div className="space-y-4">
 			<h2 className="text-xl font-semibold">Materials</h2>
 			<div className="grid gap-3 rounded-xl border p-4 bg-card">
-				{error && <div className="text-sm text-destructive">Failed to load materials</div>}
+                                {Boolean(error) && <div className="text-sm text-destructive">Failed to load materials</div>}
 				<div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
 					<div>
 						<Label htmlFor="name">Name</Label>
-						<Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                                                <Input id="name" value={form.name} onChange={(e: ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })} />
 					</div>
 					<div>
 						<Label htmlFor="unit">Unit</Label>
@@ -86,7 +86,7 @@ export function MaterialsPage() {
 							id="unit"
 							className="h-9 w-full rounded-md border bg-background px-2 text-sm"
 							value={form.unit}
-							onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                                                        onChange={(e: ChangeEvent<HTMLSelectElement>) => setForm({ ...form, unit: e.target.value })}
 						>
 							{units.map((u) => (
 								<option key={u}>{u}</option>
@@ -99,7 +99,7 @@ export function MaterialsPage() {
 							id="qty"
 							type="number"
 							value={form.quantity}
-							onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
+                                                        onChange={(e: ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: Number(e.target.value) })}
 						/>
 					</div>
 					<div>
@@ -108,7 +108,7 @@ export function MaterialsPage() {
 							id="threshold"
 							type="number"
 							value={form.lowStockThreshold}
-							onChange={(e) => setForm({ ...form, lowStockThreshold: Number(e.target.value) })}
+                                                        onChange={(e: ChangeEvent<HTMLInputElement>) => setForm({ ...form, lowStockThreshold: Number(e.target.value) })}
 						/>
 					</div>
 					<div className="sm:col-span-2">
@@ -118,7 +118,7 @@ export function MaterialsPage() {
 								id="expiry"
 								type="date"
 								value={form.expiryDate}
-								onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
+                                                                onChange={(e: ChangeEvent<HTMLInputElement>) => setForm({ ...form, expiryDate: e.target.value })}
 								className="h-9 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 							/>
 						</div>

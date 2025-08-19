@@ -1,20 +1,6 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
-
-export type ToastItem = {
-	id: string
-	title?: string
-	description?: string
-	variant?: 'success' | 'error' | 'info'
-	durationMs?: number
-}
-
-type ToastContextValue = {
-	push: (t: Omit<ToastItem, 'id'>) => void
-	success: (msg: string) => void
-	error: (msg: string) => void
-}
-
-const ToastContext = createContext<ToastContextValue | undefined>(undefined)
+import { useCallback, useMemo, useState } from 'react'
+import type { ToastItem } from './context'
+import { ToastContext } from './context'
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
 	const [toasts, setToasts] = useState<ToastItem[]>([])
@@ -36,7 +22,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 	const value = useMemo(() => ({ push, success, error }), [push, success, error])
 
 	return (
-		<ToastContext.Provider value={value}>
+                <ToastContext.Provider value={value}>
 			{children}
 			<div className="pointer-events-none fixed right-3 top-16 z-[100] flex w-[min(92vw,360px)] flex-col gap-2">
 				{toasts.map((t) => (
@@ -51,12 +37,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 					</div>
 				))}
 			</div>
-		</ToastContext.Provider>
-	)
-}
-
-export function useToast() {
-	const ctx = useContext(ToastContext)
-	if (!ctx) throw new Error('useToast must be used within ToastProvider')
-	return ctx
+                </ToastContext.Provider>
+        )
 }
