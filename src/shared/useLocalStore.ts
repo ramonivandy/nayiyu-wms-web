@@ -11,10 +11,12 @@ export function useLocalStore<T>(key: string, initialValue: T) {
 	})
 
 	useEffect(() => {
-		try {
-			localStorage.setItem(key, JSON.stringify(value))
-		} catch {}
-	}, [key, value])
+                try {
+                        localStorage.setItem(key, JSON.stringify(value))
+                } catch {
+                        // ignore storage errors
+                }
+        }, [key, value])
 
 	return { value, setValue }
 }

@@ -40,7 +40,7 @@ Minimalist mobile-first SPA built with Vite + React + TypeScript + TailwindCSS, 
 
 ## API
 
-- API contract is documented in `api-for-web.json` (versioned, REST).
+- Developers can obtain the API contract from the `pesenin-web-api` apps.
 - Auth: JWT via `Authorization: Bearer <token>`.
 - Key endpoints used:
   - Auth: `/api/v1/auth/login`, `/api/v1/auth/logout`, `/api/v1/auth/profile`

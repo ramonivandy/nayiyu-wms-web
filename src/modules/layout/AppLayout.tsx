@@ -5,11 +5,15 @@ import { apiLogout } from '../../api/auth'
 
 export function AppLayout() {
 	const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
-	async function logout() {
-		try { await apiLogout() } catch {}
-		localStorage.removeItem('authToken')
-		location.href = '/login'
-	}
+        async function logout() {
+                try {
+                        await apiLogout()
+                } catch {
+                        // ignore logout errors
+                }
+                localStorage.removeItem('authToken')
+                location.href = '/login'
+        }
 	return (
 		<div className="min-h-screen bg-background text-foreground">
 			<header className="sticky top-0 z-40 border-b bg-card/60 backdrop-blur supports-[backdrop-filter]:bg-card/60">
